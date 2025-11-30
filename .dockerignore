@@ -1,23 +1,24 @@
-# Git files
 .git
 .gitignore
+.dockerignore
 
-# Local binaries
 *.exe
-*.exe~
 *.dll
 *.so
 *.dylib
+*.test
+
+# Local binaries
 goshort_binary
 
-# Docker files
-Dockerfile
-docker-compose.yml
-
-# IDE settings
+# IDE
 .vscode
 .idea
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml

@@ -24,4 +24,4 @@ COPY --from=builder /app/goshort_binary .
 
 EXPOSE 8080
 
-CMD ["./goshort_binary"]
+CMD ["sh", "-c", "./goshort_binary"]
