@@ -20,15 +20,11 @@ lint_code:
     GIT_STRATEGY: clone
   before_script:
     - apk add --no-cache curl build-base git
-    - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
-        sh -s -- -b /usr/local/bin v1.55.2
+    - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.55.2
   script:
     - echo "Linting code..."
-    - ls -R .
+    - ls -al .
     - golangci-lint run --timeout 3m
-    - ls -R /
-    - ls -R /builds 
-    - ls -R $CI_PROJECT_DIR
 
 
 # ---------------------------------------------------------------------------
