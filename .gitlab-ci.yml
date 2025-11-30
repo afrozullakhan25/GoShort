@@ -92,7 +92,6 @@ deploy_prod:
   image: alpine:latest
   tags:
     - vps-runner
-
   variables:
     SSH_PORT: "8787"
 
@@ -102,13 +101,18 @@ deploy_prod:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - echo -e "Host *\n  StrictHostKeyChecking no\n" > ~/.ssh/config
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
   script:
-    - echo "Deploying to $SERVER_IP ..."
+    - echo "Deploying to $SERVER_IP..."
+    
+    # Main deployment logic over SSH
     - |
       ssh -p $SSH_PORT kagnite@$SERVER_IP "
-        echo $REGISTRY_DEPLOY_TOKEN | docker login registry.gitlab.com -u $REGISTRY_DEPLOY_USER --password-stdin
+        set -e
+        
+        # Login using GitLab CI variables
+        echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
 
         docker pull $IMAGE_NAME:$TAG_LATEST
 
@@ -130,13 +134,13 @@ deploy_prod:
 
     - sleep 10
 
+    # Post-deployment verification
     - |
       ssh -p $SSH_PORT kagnite@$SERVER_IP "
         if ! docker ps | grep -q goshort_app; then
           echo 'Container failed to start'
           exit 1
         fi
-
         curl --fail --max-time 10 http://localhost:8080/ || exit 1
       "
 
@@ -145,11 +149,8 @@ deploy_prod:
   environment:
     name: production
     url: http://$SERVER_IP
-    on_stop: stop_prod
-
   only:
     - main
-
 
 # ---------------------------------------------------------------------------
 # Stage 6: Stop Production
