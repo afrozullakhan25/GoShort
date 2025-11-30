@@ -46,7 +46,7 @@ security_scan:
 # ---------------------------------------------------------------------------
 unit_test:
   stage: test
-  image: golang:1.22-alpine
+  image: golang:1.24
   script:
     - echo "Running unit tests..."
     - go test -v -cover ./...
