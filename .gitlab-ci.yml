@@ -20,7 +20,7 @@ lint_code:
     - vps-runner
   script:
     - echo "Linting code..."
-    - golangci-lint run --timeout 3m
+    - golangci-lint run --timeout 10m --verbose
   allow_failure: false
 
 
