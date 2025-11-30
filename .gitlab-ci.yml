@@ -108,7 +108,7 @@ deploy_prod:
     - echo "Deploying to $SERVER_IP..."
 
     - |
-      ssh -p $SSH_PORT kagnite@$SERVER_IP "
+      ssh -o RequestTTY=no -T -p $SSH_PORT kagnite@$SERVER_IP "
         set -e
 
         # Login using DEPLOY TOKEN (not CI job token)
