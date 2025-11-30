@@ -1,10 +1,8 @@
-Git files
-
+# Git files
 .git
 .gitignore
 
-Local binaries (اگر روی سیستم خودت بیلد گرفتی، کپی نشه)
-
+# Local binaries
 *.exe
 *.exe~
 *.dll
@@ -12,17 +10,14 @@ Local binaries (اگر روی سیستم خودت بیلد گرفتی، کپی �
 *.dylib
 goshort_binary
 
-Docker files
-
+# Docker files
 Dockerfile
 docker-compose.yml
 
-IDE settings
-
+# IDE settings
 .vscode
 .idea
 
-OS files
-
+# OS files
 .DS_Store
 Thumbs.db
