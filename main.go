@@ -16,23 +16,20 @@ type ShortenRequest struct {
 }
 
 func main() {
-	// -------------------------------------------------------------------
-	// Application settings
-	// -------------------------------------------------------------------
-
 	gin.SetMode(gin.ReleaseMode)
 
-	port := getEnv("PORT", "8080") // configurable port
+	port := getEnv("PORT", "8080")
 	r := gin.New()
 
 	// -------------------------------------------------------------------
 	// Middlewares
 	// -------------------------------------------------------------------
 
-	r.Use(gin.Recovery())        // prevents server crash on panic
-	r.Use(gin.Logger())          // structured logging
-	r.Use(securityHeaders())     // basic security hardening headers
-	r.Use(requestTimeout(5 * time.Second)) // timeout middleware
+	r.Use(gin.Recovery())
+	r.Use(gin.Logger())
+	r.Use(securityHeaders())
+	r.Use(requestTimeout(5 * time.Second))
+	r.Use(rateLimiter(20, time.Minute)) // 20 requests per minute per IP
 
 	// -------------------------------------------------------------------
 	// Routes
@@ -42,19 +39,22 @@ func main() {
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
-
 	r.POST("/shorten", shortenHandler)
 
 	// -------------------------------------------------------------------
-	// Graceful Server Setup
+	// HTTP Server (Anti-Slowloris + Hardening)
 	// -------------------------------------------------------------------
 
 	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: r,
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadTimeout:       5 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second, // protects from Slowloris
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
-	// Run server in goroutine
+	// Run server
 	go func() {
 		log.Printf("GoShort running on port %s\n", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -62,12 +62,12 @@ func main() {
 		}
 	}()
 
-	// Handle graceful shutdown
+	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 	<-quit
 
-	log.Println("Shutting down server...")
+	log.Println("Shutting down gracefully...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -102,8 +102,7 @@ func shortenHandler(c *gin.Context) {
 		return
 	}
 
-	// TODO: Replace with real shortener logic + DB integration
-	shortURL := "https://goshort.ly/" + "xyz123"
+	shortURL := "https://goshort.ly/" + "xyz123" // TODO: real implementation
 
 	c.JSON(http.StatusOK, gin.H{
 		"original":  req.URL,
@@ -127,13 +126,43 @@ func securityHeaders() gin.HandlerFunc {
 	}
 }
 
+// Request timeout middleware
 func requestTimeout(timeout time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 
 		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}
+}
 
+// Rate Limiter: X requests per duration per IP
+func rateLimiter(limit int, window time.Duration) gin.HandlerFunc {
+	tokens := make(map[string]int)
+	timestamps := make(map[string]time.Time)
+
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		now := time.Now()
+
+		// Reset window
+		if t, ok := timestamps[ip]; !ok || now.Sub(t) > window {
+			tokens[ip] = 0
+			timestamps[ip] = now
+		}
+
+		// Check limit
+		if tokens[ip] >= limit {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Rate limit exceeded. Try again later.",
+			})
+			c.Abort()
+			return
+		}
+
+		// Consume token
+		tokens[ip]++
 		c.Next()
 	}
 }
