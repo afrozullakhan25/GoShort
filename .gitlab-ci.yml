@@ -95,8 +95,6 @@ deploy_prod:
 
   variables:
     SSH_PORT: "8787"
-    # Ensure these variables are set in GitLab CI/CD Settings:
-    # SERVER_IP, SSH_PRIVATE_KEY, REGISTRY_DEPLOY_TOKEN, REGISTRY_DEPLOY_USER, IMAGE_NAME, TAG_LATEST
 
   before_script:
     - apk add --no-cache openssh-client curl bash
@@ -104,68 +102,80 @@ deploy_prod:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    # SECURITY: Use ssh-keyscan instead of disabling HostKeyChecking to prevent MITM attacks
-    - ssh-keyscan -p $SSH_PORT -H $SERVER_IP >> ~/.ssh/known_hosts
+    - ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
 
   script:
     - echo "Deploying to $SERVER_IP ..."
 
-    # ------------------ DEPLOY BLOCK ------------------
-    # CRITICAL: Used << EOF (without quotes) to allow GitLab to expand variables ($IMAGE_NAME, etc.) locally
-    # before sending the script to the remote server.
-    - |
-      ssh -o RequestTTY=no -p $SSH_PORT kagnite@$SERVER_IP << EOF
+    # ============================
+    # DEPLOY BLOCK
+    # ============================
+    # CRITICAL FIX: Removed quotes from EOF so GitLab expands variables ($IMAGE_NAME, etc.)
+    - |-
+      ssh -o RequestTTY=no -p "$SSH_PORT" kagnite@"$SERVER_IP" << EOF
       set -e
 
-      echo "--> Logging into GitLab Registry..."
+      # Fix Ubuntu .bash_logout (important for non-TTY SSH)
+      if [ -f ~/.bash_logout ]; then
+          mv ~/.bash_logout ~/.bash_logout.bak || true
+      fi
+
+      echo "--> Login to GitLab Registry..."
       echo "$REGISTRY_DEPLOY_TOKEN" | docker login registry.gitlab.com -u "$REGISTRY_DEPLOY_USER" --password-stdin
 
       echo "--> Pulling latest image: $IMAGE_NAME:$TAG_LATEST"
       docker pull "$IMAGE_NAME:$TAG_LATEST"
 
-      echo "--> Removing old container..."
+      echo "--> Stopping old container..."
       docker stop goshort_app || true
       docker rm goshort_app || true
 
-      # CLEANUP: Only remove dangling images to keep the cache/previous version available for rollback
+      echo "--> Cleaning old images..."
       docker image prune -f
 
       echo "--> Starting new container..."
-      # OPS: Added log rotation to prevent disk saturation (Max 3 files, 10MB each)
       docker run -d \
         --name goshort_app \
         --restart always \
         -p 80:8080 \
-        --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+        --log-driver json-file \
+        --log-opt max-size=10m \
+        --log-opt max-file=3 \
         --health-cmd='curl -f http://localhost:8080/ || exit 1' \
         --health-interval=30s \
         --health-timeout=10s \
         --health-retries=3 \
         "$IMAGE_NAME:$TAG_LATEST"
+
+      echo "--> Container started."
+      exit 0
       EOF
 
-    # ------------------ SMART HEALTH CHECK ------------------
-    # Using a polling loop instead of a fixed sleep to reduce deployment time and increase reliability.
-    - |
-      echo "Waiting for service to become healthy..."
-      ssh -o RequestTTY=no -p $SSH_PORT kagnite@$SERVER_IP << 'EOF'
+    # ============================
+    # HEALTH CHECK BLOCK
+    # ============================
+    # NOTE: Quotes are KEPT here ('EOF') because we want the remote server to handle $i loop variable
+    - echo "Waiting for service to become healthy..."
+
+    - |-
+      ssh -o RequestTTY=no -p "$SSH_PORT" kagnite@"$SERVER_IP" << 'EOF'
       set -e
-      
-      # Poll the service for 30 seconds (6 attempts x 5 seconds)
-      for i in {1..6}; do
-        if curl --fail --silent --max-time 5 http://localhost/ > /dev/null; then
+
+      for i in 1 2 3 4 5 6; do
+        if curl --fail --silent --max-time 5 http://localhost/ >/dev/null; then
           echo "Service is UP and Healthy!"
           exit 0
         fi
-        echo "Waiting for service to respond... ($i/6)"
+        echo "Waiting for service... attempt $i/6"
         sleep 5
       done
 
-      echo "Service failed to start or pass health check."
-      echo "--> Fetching container logs for debugging:"
-      docker logs --tail 50 goshort_app
+      echo "Service FAILED. Dumping logs:"
+      docker logs --tail=50 goshort_app
       exit 1
       EOF
+
+    - echo "Deployment successful!"
 
   environment:
     name: production
@@ -173,7 +183,6 @@ deploy_prod:
 
   only:
     - main
-
 
 # ---------------------------------------------------------------------------
 # Stage 6: Stop Production
