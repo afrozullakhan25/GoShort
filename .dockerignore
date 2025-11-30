@@ -1,0 +1,28 @@
+Git files
+
+.git
+.gitignore
+
+Local binaries (اگر روی سیستم خودت بیلد گرفتی، کپی نشه)
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+goshort_binary
+
+Docker files
+
+Dockerfile
+docker-compose.yml
+
+IDE settings
+
+.vscode
+.idea
+
+OS files
+
+.DS_Store
+Thumbs.db
