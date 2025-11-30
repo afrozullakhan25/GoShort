@@ -15,17 +15,14 @@ variables:
 # ---------------------------------------------------------------------------
 lint_code:
   stage: quality
-  image: golangci/golangci-lint:v1.55.2
+  image: golangci/golangci-lint:v1.61.0
   tags:
     - vps-runner
-  before_script:
-    - cd "$CI_PROJECT_DIR"
-    - export GO111MODULE=on
-    - export CGO_ENABLED=0
   script:
     - echo "Linting code..."
-    - go list ./...
     - golangci-lint run --timeout 3m
+  allow_failure: false
+
 
 
 # ---------------------------------------------------------------------------
