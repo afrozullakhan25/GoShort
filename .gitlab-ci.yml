@@ -64,18 +64,25 @@ build_push_docker:
   stage: build
   image: docker:24-cli
   services:
-    - docker:24-dind
+    - name: docker:24-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_TLS_CERTDIR: ""
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - echo "Building Docker image..."
+    - docker info
     - docker build -t $IMAGE_NAME:$TAG_COMMIT -t $IMAGE_NAME:$TAG_LATEST .
     - echo "Pushing to GitLab registry..."
     - docker push $IMAGE_NAME:$TAG_COMMIT
     - docker push $IMAGE_NAME:$TAG_LATEST
+  tags:
+    - vps-runner
   only:
     - main
     - develop
+
 
 # ---------------------------------------------------------------------------
 # Stage 5: Deploy to Production VPS
