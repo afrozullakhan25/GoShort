@@ -1,0 +1,42 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Build
+backend/goshort
+backend/bin/
+frontend/dist/
+frontend/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Temp
+tmp/
+temp/
+test.sh
+
+# Docker
+postgres_data/
+redis_data/
+nginx_logs/
+
+# Test
+coverage.out
+*.test
