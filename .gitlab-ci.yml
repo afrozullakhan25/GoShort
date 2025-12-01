@@ -127,7 +127,7 @@ deploy_prod:
       sudo systemctl reload nginx
 
       echo "Deployment done"
-      EOF
+      << EOF
 
   environment:
     name: production
