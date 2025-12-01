@@ -263,7 +263,7 @@ build_test_frontend:
 # ---------------------------------------------------------
 build_push_backend:
   stage: build
-  image: docker:24-cli
+  image: docker:25-cli
   tags: [vps-runner]
   variables:
     DOCKER_HOST: unix:///var/run/docker.sock
@@ -292,7 +292,7 @@ build_push_backend:
 # ---------------------------------------------------------
 build_push_frontend:
   stage: build
-  image: docker:24-cli
+  image: docker:25-cli
   tags: [vps-runner]
   variables:
     DOCKER_HOST: unix:///var/run/docker.sock
