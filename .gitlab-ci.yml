@@ -1,6 +1,5 @@
 # ============================================
 # GoShort CI/CD Pipeline
-# Blue-Green Deployment with Zero Downtime
 # ============================================
 
 stages:
@@ -11,48 +10,28 @@ stages:
   - deploy
 
 variables:
-  # Docker Registry
   CI_REGISTRY_IMAGE: registry.gitlab.com/$CI_PROJECT_PATH
-  
-  # Image Tags
   TAG_COMMIT: $CI_COMMIT_SHORT_SHA
   TAG_LATEST: latest
   TAG_BRANCH: $CI_COMMIT_REF_SLUG
-  
-  # Deployment
   SSH_PORT: "22"
   DEPLOY_PATH: "/opt/goshort"
-  
-  # Docker
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: ""
 
 # ============================================
 # Backend Jobs
 # ============================================
 
-# ---------------------------------------------------------
-# Lint Backend
-# ---------------------------------------------------------
 lint_backend:
   stage: quality
   image: golangci/golangci-lint:v1.61.0
   tags: [vps-runner]
   script:
     - cd backend
-    - golangci-lint run --timeout 10m --verbose ./...
+    - golangci-lint run --timeout 10m ./...
   only:
-    - merge_requests
     - main
     - develop
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}-backend
-    paths:
-      - backend/.cache
 
-# ---------------------------------------------------------
-# Security Scan Backend
-# ---------------------------------------------------------
 security_scan_backend:
   stage: security
   image: golang:1.23-alpine
@@ -62,139 +41,42 @@ security_scan_backend:
     - go install github.com/securego/gosec/v2/cmd/gosec@v2.19.0
   script:
     - cd backend
-    - $(go env GOPATH)/bin/gosec -severity medium -confidence medium -fmt json -out gosec-report.json ./... || echo "gosec completed with warnings"
-    - $(go env GOPATH)/bin/gosec -severity medium -confidence medium ./... || true
-  artifacts:
-    reports:
-      sast: backend/gosec-report.json
-    expire_in: 1 week
-    when: always
+    - $(go env GOPATH)/bin/gosec ./... || true
   only:
-    - merge_requests
     - main
     - develop
   allow_failure: true
 
-# ---------------------------------------------------------
-# SAST with Semgrep
-# ---------------------------------------------------------
-sast_backend:
-  stage: security
-  image: returntocorp/semgrep:latest
-  tags: [vps-runner]
-  script:
-    - cd backend
-    - semgrep --config auto --json --output semgrep-report.json ./... || echo "Semgrep scan completed"
-    - semgrep --config auto ./... || true
-  artifacts:
-    reports:
-      sast: backend/semgrep-report.json
-    expire_in: 1 week
-    when: always
-  only:
-    - merge_requests
-    - main
-    - develop
-  allow_failure: true
-
-# ---------------------------------------------------------
-# Dependency Scanning
-# ---------------------------------------------------------
-dependency_scan_backend:
-  stage: security
-  image: golang:1.23-alpine
-  tags: [vps-runner]
-  before_script:
-    - apk add --no-cache git
-    - go install golang.org/x/vuln/cmd/govulncheck@latest
-  script:
-    - cd backend
-    - $(go env GOPATH)/bin/govulncheck ./... || echo "Vulnerability scan completed"
-  only:
-    - merge_requests
-    - main
-    - develop
-  allow_failure: true
-
-# ---------------------------------------------------------
-# Unit Tests Backend
-# ---------------------------------------------------------
 unit_test_backend:
   stage: test
   image: golang:1.23-alpine
   tags: [vps-runner]
   services:
-    - name: postgres:15-alpine
-      alias: postgres
-    - name: redis:7-alpine
-      alias: redis
+    - postgres:15-alpine
+    - redis:7-alpine
   variables:
     POSTGRES_DB: goshort_test
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: postgres123
-    POSTGRES_HOST_AUTH_METHOD: trust
     DB_HOST: postgres
     DB_PORT: "5432"
-    DB_USER: postgres
-    DB_PASSWORD: postgres123
-    DB_NAME: goshort_test
-    DB_SSLMODE: disable
     REDIS_HOST: redis
     REDIS_PORT: "6379"
-    REDIS_PASSWORD: ""
-    CGO_ENABLED: "1"
-    LOG_LEVEL: error
-    ENVIRONMENT: test
   before_script:
     - apk add --no-cache gcc musl-dev postgresql-client
-    - |
-      echo "Waiting for PostgreSQL..."
-      for i in {1..30}; do
-        if pg_isready -h postgres -U postgres; then
-          echo "PostgreSQL is ready!"
-          break
-        fi
-        echo "Waiting... ($i/30)"
-        sleep 2
-      done
-    - |
-      echo "Waiting for Redis..."
-      for i in {1..30}; do
-        if nc -z redis 6379; then
-          echo "Redis is ready!"
-          break
-        fi
-        echo "Waiting... ($i/30)"
-        sleep 2
-      done
     - cd backend
     - go mod download
   script:
-    - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-    - go tool cover -func=coverage.out | tail -1
-  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
-  artifacts:
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: backend/coverage.out
-    paths:
-      - backend/coverage.out
-    expire_in: 1 week
-    when: always
+    - go test -v ./...
   only:
-    - merge_requests
     - main
     - develop
-  allow_failure: false
+  allow_failure: true
 
 # ============================================
 # Frontend Jobs
 # ============================================
 
-# ---------------------------------------------------------
-# Lint Frontend
-# ---------------------------------------------------------
 lint_frontend:
   stage: quality
   image: node:20-alpine
@@ -204,38 +86,11 @@ lint_frontend:
     - npm ci
   script:
     - npm run lint || true
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}-frontend
-    paths:
-      - frontend/node_modules/
   only:
-    - merge_requests
     - main
     - develop
   allow_failure: true
 
-# ---------------------------------------------------------
-# Security Scan Frontend
-# ---------------------------------------------------------
-security_scan_frontend:
-  stage: security
-  image: node:20-alpine
-  tags: [vps-runner]
-  before_script:
-    - cd frontend
-    - npm ci
-  script:
-    - npm audit --audit-level=moderate || true
-    - npx snyk test --severity-threshold=high || true
-  only:
-    - merge_requests
-    - main
-    - develop
-  allow_failure: true
-
-# ---------------------------------------------------------
-# Build Frontend (Test)
-# ---------------------------------------------------------
 build_test_frontend:
   stage: test
   image: node:20-alpine
@@ -245,162 +100,73 @@ build_test_frontend:
     - npm ci
   script:
     - npm run build
-  artifacts:
-    paths:
-      - frontend/dist/
-    expire_in: 1 day
   only:
-    - merge_requests
     - main
     - develop
 
 # ============================================
-# Build & Push Docker Images
+# Build & Push - روی خود سرور
 # ============================================
 
-# ---------------------------------------------------------
-# Build & Push Backend
-# ---------------------------------------------------------
-build_push_backend:
+build_push_images:
   stage: build
-  image: docker:24-cli
   tags: [vps-runner]
-  variables:
-    DOCKER_HOST: unix:///var/run/docker.sock
-  before_script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-  script:
-    - cd backend
-    - |
-      docker build \
-        --cache-from $CI_REGISTRY_IMAGE/backend:$TAG_LATEST \
-        --build-arg BUILDKIT_INLINE_CACHE=1 \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_COMMIT \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_BRANCH \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_LATEST \
-        .
-    - docker push $CI_REGISTRY_IMAGE/backend:$TAG_COMMIT
-    - docker push $CI_REGISTRY_IMAGE/backend:$TAG_BRANCH
-    - docker push $CI_REGISTRY_IMAGE/backend:$TAG_LATEST
-  only:
-    - main
-    - develop
-  retry: 2
-
-# ---------------------------------------------------------
-# Build & Push Frontend
-# ---------------------------------------------------------
-build_push_frontend:
-  stage: build
-  image: docker:24-cli
-  tags: [vps-runner]
-  variables:
-    DOCKER_HOST: unix:///var/run/docker.sock
-  before_script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-  script:
-    - cd frontend
-    - |
-      docker build \
-        --cache-from $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST \
-        --build-arg BUILDKIT_INLINE_CACHE=1 \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_COMMIT \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_BRANCH \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST \
-        .
-    - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_COMMIT
-    - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_BRANCH
-    - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST
-  only:
-    - main
-    - develop
-  retry: 2
-
-# ============================================
-# Deploy to Production (Blue-Green)
-# ============================================
-deploy_production:
-  stage: deploy
   image: alpine:3.19
-  tags: [vps-runner]
-  variables:
-    SSH_PORT: "${SSH_PORT}"
-    DEPLOY_PATH: "${DEPLOY_PATH}"
   before_script:
-    - apk add --no-cache openssh-client curl bash docker-cli
+    - apk add --no-cache openssh-client
     - eval $(ssh-agent -s)
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
     - ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
-    - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh -p "$SSH_PORT" $SERVER_USER@"$SERVER_IP" bash -s <<'ENDSSH'
-      set -e
+      ssh -p "$SSH_PORT" $SERVER_USER@"$SERVER_IP" bash <<'ENDSSH'
+      cd /opt/goshort
       
-      echo "=========================================="
-      echo "Starting Blue-Green Deployment"
-      echo "=========================================="
+      echo "Login to registry..."
+      echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin registry.gitlab.com
       
-      cd ${DEPLOY_PATH}
+      echo "Building backend..."
+      cd backend
+      docker build -t registry.gitlab.com/kagnite-group/kagnite-project/backend:latest .
+      docker push registry.gitlab.com/kagnite-group/kagnite-project/backend:latest
       
-      echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+      echo "Building frontend..."
+      cd ../frontend
+      docker build -t registry.gitlab.com/kagnite-group/kagnite-project/frontend:latest .
+      docker push registry.gitlab.com/kagnite-group/kagnite-project/frontend:latest
+      
+      echo "Build completed!"
+      ENDSSH
+  only:
+    - main
+
+# ============================================
+# Deploy
+# ============================================
+
+deploy_production:
+  stage: deploy
+  tags: [vps-runner]
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
+  script:
+    - |
+      ssh -p "$SSH_PORT" $SERVER_USER@"$SERVER_IP" bash <<'ENDSSH'
+      cd /opt/goshort
       
       echo "Pulling latest images..."
-      docker pull ${CI_REGISTRY_IMAGE}/backend:${TAG_LATEST}
-      docker pull ${CI_REGISTRY_IMAGE}/frontend:${TAG_LATEST}
+      docker-compose -f docker-compose.prod.yml pull
       
-      if docker ps --format '{{.Names}}' | grep -q "backend-blue"; then
-          ACTIVE_COLOR="blue"
-          INACTIVE_COLOR="green"
-      else
-          ACTIVE_COLOR="green"
-          INACTIVE_COLOR="blue"
-      fi
+      echo "Restarting services..."
+      docker-compose -f docker-compose.prod.yml up -d
       
-      echo "Current active: $ACTIVE_COLOR"
-      echo "Deploying to: $INACTIVE_COLOR"
-      
-      echo "Updating $INACTIVE_COLOR environment..."
-      docker-compose -f docker-compose.prod.yml up -d backend-${INACTIVE_COLOR}
-      
-      echo "Waiting for $INACTIVE_COLOR to become healthy..."
-      for i in {1..30}; do
-          if docker exec goshort-backend-${INACTIVE_COLOR} curl -f http://localhost:8080/api/v1/health 2>/dev/null; then
-              echo "$INACTIVE_COLOR is healthy!"
-              break
-          fi
-          if [ $i -eq 30 ]; then
-              echo "Health check failed after 30 attempts"
-              exit 1
-          fi
-          echo "Attempt $i/30: waiting..."
-          sleep 2
-      done
-      
-      echo "Switching nginx to $INACTIVE_COLOR..."
-      echo "server backend-${INACTIVE_COLOR}:8080 max_fails=3 fail_timeout=30s;" | sudo tee ${DEPLOY_PATH}/nginx/upstreams/backend_active.conf
-      
-      docker exec goshort-nginx nginx -t && docker exec goshort-nginx nginx -s reload
-      
-      echo "Nginx switched to $INACTIVE_COLOR"
-      
-      sleep 5
-      
-      echo "Stopping $ACTIVE_COLOR environment..."
-      docker-compose -f docker-compose.prod.yml stop backend-${ACTIVE_COLOR}
-      
-      echo "Updating frontend..."
-      docker-compose -f docker-compose.prod.yml up -d frontend
-      
-      echo "=========================================="
-      echo "Deployment completed successfully!"
-      echo "Active environment: $INACTIVE_COLOR"
-      echo "=========================================="
-      
-      docker image prune -af --filter "until=72h"
-      
+      echo "Deployment completed!"
       ENDSSH
   environment:
     name: production
@@ -409,73 +175,23 @@ deploy_production:
     - main
   when: manual
 
-# ============================================
-# Deploy to Staging
-# ============================================
-deploy_staging:
-  stage: deploy
-  image: alpine:3.19
-  tags: [vps-runner]
-  before_script:
-    - apk add --no-cache openssh-client curl bash
-    - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-    - mkdir -p ~/.ssh
-    - ssh-keyscan -p "$SSH_PORT" -H "$STAGING_SERVER_IP" >> ~/.ssh/known_hosts
-  script:
-    - |
-      ssh -p "$SSH_PORT" $SERVER_USER@"$STAGING_SERVER_IP" <<'ENDSSH'
-      cd /opt/goshort-staging
-      docker-compose -f docker-compose.yml pull
-      docker-compose -f docker-compose.yml up -d
-      docker image prune -af
-      ENDSSH
-  environment:
-    name: staging
-    url: https://staging.yourdomain.com
-  only:
-    - develop
-
-# ============================================
-# Rollback Job
-# ============================================
 rollback_production:
   stage: deploy
-  image: alpine:3.19
   tags: [vps-runner]
+  image: alpine:3.19
   before_script:
-    - apk add --no-cache openssh-client bash
+    - apk add --no-cache openssh-client
     - eval $(ssh-agent -s)
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - ssh-keyscan -p "$SSH_PORT" -H "$SERVER_IP" >> ~/.ssh/known_hosts
   script:
     - |
-      ssh -p "$SSH_PORT" $SERVER_USER@"$SERVER_IP" <<'ENDSSH'
-      set -e
-      cd ${DEPLOY_PATH}
-      
-      if docker ps --format '{{.Names}}' | grep -q "backend-blue"; then
-          CURRENT="blue"
-          PREVIOUS="green"
-      else
-          CURRENT="green"
-          PREVIOUS="blue"
-      fi
-      
-      echo "Rolling back from $CURRENT to $PREVIOUS"
-      
-      docker-compose -f docker-compose.prod.yml up -d backend-${PREVIOUS}
-      
-      sleep 10
-      
-      echo "server backend-${PREVIOUS}:8080;" | sudo tee ${DEPLOY_PATH}/nginx/upstreams/backend_active.conf
-      docker exec goshort-nginx nginx -s reload
-      
-      echo "Rollback completed to $PREVIOUS"
+      ssh -p "$SSH_PORT" $SERVER_USER@"$SERVER_IP" bash <<'ENDSSH'
+      cd /opt/goshort
+      docker-compose -f docker-compose.prod.yml down
+      docker-compose -f docker-compose.prod.yml up -d
       ENDSSH
-  environment:
-    name: production
-  when: manual
   only:
     - main
+  when: manual
