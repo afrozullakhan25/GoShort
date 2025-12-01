@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+.gitlab-ci.yml
+
+# Documentation
+README.md
+docs/
+
+# Development files
+.env
+.env.*
+*.log
+
+# Test files
+*_test.go
+testdata/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+bin/
+build/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
