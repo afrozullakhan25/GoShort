@@ -303,6 +303,7 @@ deploy_production:
       echo "Starting Blue-Green Deployment"
       echo "=========================================="
       
+      mkdir -p /opt/goshort
       cd /opt/goshort
       
       echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
