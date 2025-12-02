@@ -233,8 +233,7 @@ build_push_backend:
   tags: [vps-runner]
   before_script:
     - docker info
-    - echo "Logging in to GitLab Registry with Deploy Token..."
-    - echo "$DEPLOY_TOKEN_PASSWORD" | docker login -u "$DEPLOY_TOKEN_USERNAME" --password-stdin "$CI_REGISTRY"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - cd backend
     - |
@@ -257,8 +256,7 @@ build_push_frontend:
   tags: [vps-runner]
   before_script:
     - docker info
-    - echo "Logging in to GitLab Registry with Deploy Token..."
-    - echo "$DEPLOY_TOKEN_PASSWORD" | docker login -u "$DEPLOY_TOKEN_USERNAME" --password-stdin "$CI_REGISTRY"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - cd frontend
     - |
@@ -305,7 +303,7 @@ deploy_production:
       
       cd ${DEPLOY_PATH}
       
-      echo "${DEPLOY_TOKEN_PASSWORD}" | docker login -u "${DEPLOY_TOKEN_USERNAME}" --password-stdin "${CI_REGISTRY}"
+      echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
       
       echo "Pulling latest images..."
       docker pull ${CI_REGISTRY_IMAGE}/backend:${TAG_LATEST}
