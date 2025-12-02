@@ -227,56 +227,6 @@ build_test_frontend:
 # Build & Push Docker Images
 # ============================================
 
-build_push_backend:
-  stage: build
-  image: docker:25-cli
-  tags: [vps-runner]
-  before_script:
-    - docker info
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-  script:
-    - cd backend
-    - |
-      docker build \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_COMMIT \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_BRANCH \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_LATEST \
-        .
-    - docker push $CI_REGISTRY_IMAGE/backend:$TAG_COMMIT
-    - docker push $CI_REGISTRY_IMAGE/backend:$TAG_BRANCH
-    - docker push $CI_REGISTRY_IMAGE/backend:$TAG_LATEST
-  only:
-    - main
-    - develop
-  retry: 2
-
-build_push_frontend:
-  stage: build
-  image: docker:25-cli
-  tags: [vps-runner]
-  before_script:
-    - docker info
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-  script:
-    - cd frontend
-    - |
-      docker build \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_COMMIT \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_BRANCH \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST \
-        .
-    - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_COMMIT
-    - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_BRANCH
-    - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST
-  only:
-    - main
-    - develop
-  retry: 2
-
-# ============================================
-# Deploy to Production (Blue-Green)
-# ============================================
-
 deploy_production:
   stage: deploy
   image: alpine:3.19
@@ -291,7 +241,12 @@ deploy_production:
     - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh -p "$SSH_PORT" $SERVER_USER@"$SERVER_IP" bash -s <<'ENDSSH'
+      ssh -p "$SSH_PORT" $SERVER_USER@"$SERVER_IP" \
+        CI_REGISTRY="$CI_REGISTRY" \
+        CI_REGISTRY_USER="$CI_REGISTRY_USER" \
+        CI_REGISTRY_PASSWORD="$CI_REGISTRY_PASSWORD" \
+        CI_REGISTRY_IMAGE="$CI_REGISTRY_IMAGE" \
+        bash -s <<'ENDSSH'
       set -e
       
       echo "=========================================="
@@ -428,3 +383,4 @@ rollback_production:
   when: manual
   only:
     - main
+
