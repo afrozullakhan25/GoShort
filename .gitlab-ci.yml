@@ -353,9 +353,21 @@ deploy_production:
       if [ -z "$NGINX_CONTAINER" ]; then
         echo "Starting nginx..."
         docker compose -f docker-compose.prod.yml up -d nginx
-        sleep 3
+        sleep 5
         NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
       fi
+      
+      echo "Waiting for nginx to be ready..."
+      for i in $(seq 1 20); do
+        NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' $NGINX_CONTAINER 2>/dev/null || echo "not_found")
+        if [ "$NGINX_STATUS" = "running" ]; then
+          echo "Nginx is running!"
+          break
+        fi
+        echo "Nginx status: $NGINX_STATUS, waiting... ($i/20)"
+        sleep 3
+      done
+      
       echo "Using nginx container: $NGINX_CONTAINER"
       docker exec $NGINX_CONTAINER nginx -t
       docker exec $NGINX_CONTAINER nginx -s reload
@@ -437,7 +449,17 @@ rollback_production:
     - |
       NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1 || true)
       if [ -n "$NGINX_CONTAINER" ]; then
-        docker exec $NGINX_CONTAINER nginx -s reload
+        echo "Waiting for nginx to be ready..."
+        for i in $(seq 1 20); do
+          NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' $NGINX_CONTAINER 2>/dev/null || echo "not_found")
+          if [ "$NGINX_STATUS" = "running" ]; then
+            echo "Nginx is running!"
+            docker exec $NGINX_CONTAINER nginx -s reload
+            break
+          fi
+          echo "Nginx status: $NGINX_STATUS, waiting... ($i/20)"
+          sleep 3
+        done
       else
         echo "No nginx container found"
       fi
