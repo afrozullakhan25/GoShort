@@ -273,7 +273,7 @@ build_push_frontend:
   retry: 2
 
 # ============================================
-# Deploy to Production (Blue-Green)
+# Deploy to Production (Blue-Green Zero Downtime)
 # ============================================
 
 deploy_production:
@@ -290,7 +290,7 @@ deploy_production:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - echo "=========================================="
-    - echo "Starting Blue-Green Deployment"
+    - echo "Zero-Downtime Blue-Green Deployment"
     - echo "=========================================="
     
     - mkdir -p /opt/goshort/nginx/upstreams
@@ -299,12 +299,8 @@ deploy_production:
     
     - cd /opt/goshort
     
-    - echo "Files in /opt/goshort:"
-    - ls -la *.yml
-    - ls -la nginx/
-    
-    - echo "Starting infrastructure..."
-    - docker compose -f docker-compose.prod.yml up -d postgres redis nginx
+    - echo "Starting databases only (nginx untouched)..."
+    - docker compose -f docker-compose.prod.yml up -d postgres redis
     
     - echo "Pulling latest images..."
     - docker pull $CI_REGISTRY_IMAGE/backend:$TAG_LATEST
@@ -319,35 +315,35 @@ deploy_production:
           export INACTIVE_COLOR="blue"
       fi
     
-    - echo "Current active $ACTIVE_COLOR, deploying to $INACTIVE_COLOR"
+    - echo "Active $ACTIVE_COLOR deploying to $INACTIVE_COLOR"
     
     - docker compose -f docker-compose.prod.yml up -d backend-${INACTIVE_COLOR}
     
-    - echo "Waiting for $INACTIVE_COLOR to become healthy..."
+    - echo "Health check for $INACTIVE_COLOR..."
     - |
       for i in {1..30}; do
-          if docker exec goshort-backend-${INACTIVE_COLOR} curl -f http://localhost:8080/api/v1/health 2>/dev/null; then
-              echo "$INACTIVE_COLOR is healthy!"
-              break
-          fi
-          echo "Attempt $i/30: waiting..."
-          sleep 2
+        if docker exec goshort-backend-${INACTIVE_COLOR} curl -f http://localhost:8080/api/v1/health >/dev/null 2>&1; then
+            echo "$INACTIVE_COLOR is healthy!"
+            break
+        fi
+        echo "Waiting... ($i/30)"
+        sleep 2
       done
     
-    - echo "Switching nginx to $INACTIVE_COLOR..."
+    - echo "Switching nginx config (reload only, no restart)..."
     - echo "server backend-${INACTIVE_COLOR}:8080 max_fails=3 fail_timeout=30s;" > nginx/upstreams/backend_active.conf
-    - docker exec goshort-nginx nginx -t || true
-    - docker exec goshort-nginx nginx -s reload || true
+    - NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
+    - docker exec $NGINX_CONTAINER nginx -t
+    - docker exec $NGINX_CONTAINER nginx -s reload
     
     - echo "Updating frontend..."
     - docker compose -f docker-compose.prod.yml up -d frontend
     
-    - echo "Stopping $ACTIVE_COLOR environment..."
+    - echo "Stopping old backend $ACTIVE_COLOR..."
     - docker compose -f docker-compose.prod.yml stop backend-${ACTIVE_COLOR}
     
     - echo "=========================================="
-    - echo "Deployment completed successfully!"
-    - echo "Active environment $INACTIVE_COLOR"
+    - echo "Deployment successful Active $INACTIVE_COLOR"
     - echo "=========================================="
     
     - docker image prune -af --filter "until=72h"
@@ -413,7 +409,8 @@ rollback_production:
     - sleep 10
     
     - echo "server backend-${PREVIOUS}:8080 max_fails=3 fail_timeout=30s;" > nginx/upstreams/backend_active.conf
-    - docker exec goshort-nginx nginx -s reload || true
+    - NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
+    - docker exec $NGINX_CONTAINER nginx -s reload
     
     - echo "Rollback completed to $PREVIOUS"
   environment:
