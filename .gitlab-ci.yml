@@ -299,8 +299,23 @@ deploy_production:
     
     - cd /opt/goshort
     
-    - echo "Starting databases only..."
-    - docker compose -f docker-compose.prod.yml up -d postgres redis
+    - echo "Checking existing nginx..."
+    - |
+      if docker ps --format '{{.Names}}' | grep -q nginx; then
+        echo "Nginx already running"
+        NGINX_EXISTS=true
+      else
+        echo "No nginx found, will start new"
+        NGINX_EXISTS=false
+      fi
+    
+    - echo "Starting infrastructure services..."
+    - |
+      if [ "$NGINX_EXISTS" = "false" ]; then
+        docker compose -f docker-compose.prod.yml up -d postgres redis nginx
+      else
+        docker compose -f docker-compose.prod.yml up -d postgres redis
+      fi
     
     - echo "Pulling latest images..."
     - docker pull $CI_REGISTRY_IMAGE/backend:$TAG_LATEST
@@ -332,9 +347,18 @@ deploy_production:
     
     - echo "Switching nginx config..."
     - echo "server backend-${INACTIVE_COLOR}:8080 max_fails=3 fail_timeout=30s;" > nginx/upstreams/backend_active.conf
-    - NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
-    - docker exec $NGINX_CONTAINER nginx -t
-    - docker exec $NGINX_CONTAINER nginx -s reload
+    
+    - |
+      NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1 || true)
+      if [ -z "$NGINX_CONTAINER" ]; then
+        echo "Starting nginx..."
+        docker compose -f docker-compose.prod.yml up -d nginx
+        sleep 3
+        NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
+      fi
+      echo "Using nginx container: $NGINX_CONTAINER"
+      docker exec $NGINX_CONTAINER nginx -t
+      docker exec $NGINX_CONTAINER nginx -s reload
     
     - echo "Updating frontend..."
     - docker compose -f docker-compose.prod.yml up -d frontend
@@ -409,8 +433,14 @@ rollback_production:
     - sleep 10
     
     - echo "server backend-${PREVIOUS}:8080 max_fails=3 fail_timeout=30s;" > nginx/upstreams/backend_active.conf
-    - NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
-    - docker exec $NGINX_CONTAINER nginx -s reload
+    
+    - |
+      NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1 || true)
+      if [ -n "$NGINX_CONTAINER" ]; then
+        docker exec $NGINX_CONTAINER nginx -s reload
+      else
+        echo "No nginx container found"
+      fi
     
     - echo "Rollback completed to $PREVIOUS"
   environment:
