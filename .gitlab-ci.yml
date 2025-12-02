@@ -3,12 +3,14 @@
 # Blue-Green Deployment with Zero Downtime
 # ============================================
 
+
 stages:
   - quality
   - security
   - test
   - build
   - deploy
+
 
 variables:
   CI_REGISTRY_IMAGE: registry.gitlab.com/$CI_PROJECT_PATH
@@ -19,9 +21,11 @@ variables:
   DOCKER_DRIVER: overlay2
   DOCKER_HOST: unix:///var/run/docker.sock
 
+
 # ============================================
 # Backend Jobs
 # ============================================
+
 
 lint_backend:
   stage: quality
@@ -38,6 +42,7 @@ lint_backend:
     key: ${CI_COMMIT_REF_SLUG}-backend
     paths:
       - backend/.cache
+
 
 security_scan_backend:
   stage: security
@@ -61,6 +66,7 @@ security_scan_backend:
     - develop
   allow_failure: true
 
+
 sast_backend:
   stage: security
   image: returntocorp/semgrep:latest
@@ -80,6 +86,7 @@ sast_backend:
     - develop
   allow_failure: true
 
+
 dependency_scan_backend:
   stage: security
   image: golang:1.23-alpine
@@ -95,6 +102,7 @@ dependency_scan_backend:
     - main
     - develop
   allow_failure: true
+
 
 unit_test_backend:
   stage: test
@@ -165,9 +173,11 @@ unit_test_backend:
     - develop
   allow_failure: false
 
+
 # ============================================
 # Frontend Jobs
 # ============================================
+
 
 lint_frontend:
   stage: quality
@@ -188,6 +198,7 @@ lint_frontend:
     - develop
   allow_failure: true
 
+
 security_scan_frontend:
   stage: security
   image: node:20-alpine
@@ -203,6 +214,7 @@ security_scan_frontend:
     - main
     - develop
   allow_failure: true
+
 
 build_test_frontend:
   stage: test
@@ -222,9 +234,11 @@ build_test_frontend:
     - main
     - develop
 
+
 # ============================================
 # Build & Push Docker Images
 # ============================================
+
 
 build_push_backend:
   stage: build
@@ -249,6 +263,7 @@ build_push_backend:
     - develop
   retry: 2
 
+
 build_push_frontend:
   stage: build
   image: docker:25-cli
@@ -272,16 +287,23 @@ build_push_frontend:
     - develop
   retry: 2
 
+
 # ============================================
 # Deploy to Production (Blue-Green)
 # WITHOUT SSH - Direct execution on VPS
 # ============================================
+
 
 deploy_production:
   stage: deploy
   image: docker:25-cli
   tags: [vps-runner]
   before_script:
+    - apk add --no-cache curl
+    - mkdir -p ~/.docker/cli-plugins
+    - wget -q https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -O ~/.docker/cli-plugins/docker-compose
+    - chmod +x ~/.docker/cli-plugins/docker-compose
+    - docker compose version
     - docker info
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
@@ -306,7 +328,7 @@ deploy_production:
     
     - echo "Current active $ACTIVE_COLOR, deploying to $INACTIVE_COLOR"
     
-    - docker-compose -f docker-compose.prod.yml up -d backend-${INACTIVE_COLOR}
+    - docker compose -f docker-compose.prod.yml up -d backend-${INACTIVE_COLOR}
     
     - echo "Waiting for $INACTIVE_COLOR to become healthy..."
     - |
@@ -334,10 +356,10 @@ deploy_production:
     - sleep 5
     
     - echo "Stopping $ACTIVE_COLOR environment..."
-    - docker-compose -f docker-compose.prod.yml stop backend-${ACTIVE_COLOR}
+    - docker compose -f docker-compose.prod.yml stop backend-${ACTIVE_COLOR}
     
     - echo "Updating frontend..."
-    - docker-compose -f docker-compose.prod.yml up -d frontend
+    - docker compose -f docker-compose.prod.yml up -d frontend
     
     - echo "=========================================="
     - echo "Deployment completed successfully!"
@@ -352,17 +374,22 @@ deploy_production:
     - main
   when: manual
 
+
 deploy_staging:
   stage: deploy
   image: docker:25-cli
   tags: [vps-runner]
   before_script:
+    - mkdir -p ~/.docker/cli-plugins
+    - wget -q https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -O ~/.docker/cli-plugins/docker-compose
+    - chmod +x ~/.docker/cli-plugins/docker-compose
+    - docker compose version
     - docker info
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - cd /opt/goshort-staging
-    - docker-compose -f docker-compose.yml pull
-    - docker-compose -f docker-compose.yml up -d
+    - docker compose -f docker-compose.yml pull
+    - docker compose -f docker-compose.yml up -d
     - docker image prune -af --filter "until=72h"
   environment:
     name: staging
@@ -370,10 +397,16 @@ deploy_staging:
   only:
     - develop
 
+
 rollback_production:
   stage: deploy
   image: docker:25-cli
   tags: [vps-runner]
+  before_script:
+    - mkdir -p ~/.docker/cli-plugins
+    - wget -q https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -O ~/.docker/cli-plugins/docker-compose
+    - chmod +x ~/.docker/cli-plugins/docker-compose
+    - docker compose version
   script:
     - cd /opt/goshort
     
@@ -388,7 +421,7 @@ rollback_production:
     
     - echo "Rolling back from $CURRENT to $PREVIOUS"
     
-    - docker-compose -f docker-compose.prod.yml up -d backend-${PREVIOUS}
+    - docker compose -f docker-compose.prod.yml up -d backend-${PREVIOUS}
     
     - sleep 10
     
