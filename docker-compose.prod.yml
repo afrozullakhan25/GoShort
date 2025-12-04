@@ -26,8 +26,8 @@ x-backend-common: &backend-common
   deploy:
     resources:
       limits:
-        cpus: '1'
-        memory: 512M
+        cpus: '0.5'     # کاهش جزئی برای جلوگیری از فشار روی CPU
+        memory: 300M    # کاهش به 300 مگابایت برای مدیریت بهتر رم
 
 services:
   postgres:
@@ -48,6 +48,10 @@ services:
     networks:
       - goshort-network
     restart: always
+    deploy:             # اضافه شد
+      resources:
+        limits:
+          memory: 512M  # محدود کردن دیتابیس
 
   redis:
     image: redis:7-alpine
@@ -63,6 +67,10 @@ services:
     networks:
       - goshort-network
     restart: always
+    deploy:             # اضافه شد
+      resources:
+        limits:
+          memory: 256M  # محدود کردن ردیس
 
   backend-blue:
     <<: *backend-common
@@ -107,6 +115,10 @@ services:
     networks:
       - goshort-network
     restart: always
+    deploy:             # اضافه شد
+      resources:
+        limits:
+          memory: 128M  # فرانت‌اند استاتیک رم کمی نیاز دارد
 
   nginx:
     image: nginx:1.25-alpine
@@ -129,7 +141,10 @@ services:
     networks:
       - goshort-network
     restart: always
-
+    deploy:             
+      resources:
+        limits:
+          memory: 128M   
 networks:
   goshort-network:
     driver: bridge

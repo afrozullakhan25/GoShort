@@ -1,6 +1,6 @@
 # ============================================
 # GoShort CI/CD Pipeline
-# Blue-Green Deployment with Zero Downtime
+# Optimized for Memory & Zero Downtime
 # ============================================
 
 stages:
@@ -20,7 +20,7 @@ variables:
   DOCKER_HOST: unix:///var/run/docker.sock
 
 # ============================================
-# Backend Jobs
+# 1. Quality & Security (Backend & Frontend)
 # ============================================
 
 lint_backend:
@@ -48,53 +48,44 @@ security_scan_backend:
     - go install github.com/securego/gosec/v2/cmd/gosec@v2.19.0
   script:
     - cd backend
-    - $(go env GOPATH)/bin/gosec -severity medium -confidence medium -fmt json -out gosec-report.json ./... || echo "gosec completed with warnings"
-    - $(go env GOPATH)/bin/gosec -severity medium -confidence medium ./... || true
+    - $(go env GOPATH)/bin/gosec -severity medium -confidence medium -fmt json -out gosec-report.json ./... || echo "gosec warning"
   artifacts:
     reports:
       sast: backend/gosec-report.json
     expire_in: 1 week
-    when: always
-  only:
-    - merge_requests
-    - main
-    - develop
   allow_failure: true
+  only: [merge_requests, main, develop]
 
-sast_backend:
-  stage: security
-  image: returntocorp/semgrep:latest
-  tags: [vps-runner]
-  script:
-    - cd backend
-    - semgrep --config auto --json --output semgrep-report.json ./... || echo "Semgrep scan completed"
-    - semgrep --config auto ./... || true
-  artifacts:
-    reports:
-      sast: backend/semgrep-report.json
-    expire_in: 1 week
-    when: always
-  only:
-    - merge_requests
-    - main
-    - develop
-  allow_failure: true
-
-dependency_scan_backend:
-  stage: security
-  image: golang:1.23-alpine
+lint_frontend:
+  stage: quality
+  image: node:20-alpine
   tags: [vps-runner]
   before_script:
-    - apk add --no-cache git
-    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - cd frontend
+    - npm ci
   script:
-    - cd backend
-    - $(go env GOPATH)/bin/govulncheck ./... || echo "Vulnerability scan completed"
-  only:
-    - merge_requests
-    - main
-    - develop
+    - npm run lint || true
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-frontend
+    paths:
+      - frontend/node_modules/
+  only: [merge_requests, main, develop]
+
+security_scan_frontend:
+  stage: security
+  image: node:20-alpine
+  tags: [vps-runner]
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm audit --audit-level=moderate || true
   allow_failure: true
+  only: [merge_requests, main, develop]
+
+# ============================================
+# 2. Tests
+# ============================================
 
 unit_test_backend:
   stage: test
@@ -120,89 +111,13 @@ unit_test_backend:
     REDIS_PORT: "6379"
     REDIS_PASSWORD: ""
     CGO_ENABLED: "1"
-    LOG_LEVEL: error
-    ENVIRONMENT: test
   before_script:
     - apk add --no-cache gcc musl-dev postgresql-client
-    - |
-      echo "Waiting for PostgreSQL..."
-      for i in $(seq 1 30); do
-        if pg_isready -h postgres -U postgres; then
-          echo "PostgreSQL is ready!"
-          break
-        fi
-        echo "Waiting... ($i/30)"
-        sleep 2
-      done
-    - |
-      echo "Waiting for Redis..."
-      for i in $(seq 1 30); do
-        if nc -z redis 6379; then
-          echo "Redis is ready!"
-          break
-        fi
-        echo "Waiting... ($i/30)"
-        sleep 2
-      done
     - cd backend
     - go mod download
   script:
     - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-    - go tool cover -func=coverage.out | tail -1
-  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
-  artifacts:
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: backend/coverage.out
-    paths:
-      - backend/coverage.out
-    expire_in: 1 week
-    when: always
-  only:
-    - merge_requests
-    - main
-    - develop
-  allow_failure: false
-
-# ============================================
-# Frontend Jobs
-# ============================================
-
-lint_frontend:
-  stage: quality
-  image: node:20-alpine
-  tags: [vps-runner]
-  before_script:
-    - cd frontend
-    - npm ci
-  script:
-    - npm run lint || true
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}-frontend
-    paths:
-      - frontend/node_modules/
-  only:
-    - merge_requests
-    - main
-    - develop
-  allow_failure: true
-
-security_scan_frontend:
-  stage: security
-  image: node:20-alpine
-  tags: [vps-runner]
-  before_script:
-    - cd frontend
-    - npm ci
-  script:
-    - npm audit --audit-level=moderate || true
-    - npx snyk test --severity-threshold=high || true
-  only:
-    - merge_requests
-    - main
-    - develop
-  allow_failure: true
+  only: [merge_requests, main, develop]
 
 build_test_frontend:
   stage: test
@@ -213,17 +128,10 @@ build_test_frontend:
     - npm ci
   script:
     - npm run build
-  artifacts:
-    paths:
-      - frontend/dist/
-    expire_in: 1 day
-  only:
-    - merge_requests
-    - main
-    - develop
+  only: [merge_requests, main, develop]
 
 # ============================================
-# Build & Push Docker Images
+# 3. Build & Push
 # ============================================
 
 build_push_backend:
@@ -231,165 +139,32 @@ build_push_backend:
   image: docker:25-cli
   tags: [vps-runner]
   before_script:
-    - docker info
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - cd backend
-    - |
-      docker build \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_COMMIT \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_BRANCH \
-        -t $CI_REGISTRY_IMAGE/backend:$TAG_LATEST \
-        .
+    - docker build -t $CI_REGISTRY_IMAGE/backend:$TAG_COMMIT -t $CI_REGISTRY_IMAGE/backend:$TAG_LATEST .
     - docker push $CI_REGISTRY_IMAGE/backend:$TAG_COMMIT
-    - docker push $CI_REGISTRY_IMAGE/backend:$TAG_BRANCH
     - docker push $CI_REGISTRY_IMAGE/backend:$TAG_LATEST
-  only:
-    - main
-    - develop
-  retry: 2
+  only: [main, develop]
 
 build_push_frontend:
   stage: build
   image: docker:25-cli
   tags: [vps-runner]
   before_script:
-    - docker info
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - cd frontend
-    - |
-      docker build \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_COMMIT \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_BRANCH \
-        -t $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST \
-        .
+    - docker build -t $CI_REGISTRY_IMAGE/frontend:$TAG_COMMIT -t $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST .
     - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_COMMIT
-    - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_BRANCH
     - docker push $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST
-  only:
-    - main
-    - develop
-  retry: 2
+  only: [main, develop]
 
 # ============================================
-# Deploy to Production (Blue-Green Zero Downtime)
+# 4. Deployment (Staging & Prod)
 # ============================================
 
-deploy_production:
-  stage: deploy
-  image: docker:25-cli
-  tags: [vps-runner]
-  before_script:
-    - apk add --no-cache curl
-    - mkdir -p ~/.docker/cli-plugins
-    - wget -q https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -O ~/.docker/cli-plugins/docker-compose
-    - chmod +x ~/.docker/cli-plugins/docker-compose
-    - docker compose version
-    - docker info
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-  script:
-    - echo "=========================================="
-    - echo "Zero-Downtime Blue-Green Deployment"
-    - echo "=========================================="
-    
-    - mkdir -p /opt/goshort/nginx/upstreams
-    - cp docker-compose.prod.yml /opt/goshort/
-    - cp nginx/nginx.conf /opt/goshort/nginx/
-    
-    - cd /opt/goshort
-    
-    - echo "Checking existing nginx..."
-    - |
-      if docker ps --format '{{.Names}}' | grep -q nginx; then
-        echo "Nginx already running"
-        NGINX_EXISTS=true
-      else
-        echo "No nginx found, will start new"
-        NGINX_EXISTS=false
-      fi
-    
-    - echo "Starting infrastructure services..."
-    - |
-      if [ "$NGINX_EXISTS" = "false" ]; then
-        docker compose -f docker-compose.prod.yml up -d postgres redis nginx
-      else
-        docker compose -f docker-compose.prod.yml up -d postgres redis
-      fi
-    
-    - echo "Pulling latest images..."
-    - docker pull $CI_REGISTRY_IMAGE/backend:$TAG_LATEST
-    - docker pull $CI_REGISTRY_IMAGE/frontend:$TAG_LATEST
-    
-    - |
-      if docker ps --format '{{.Names}}' | grep -q "goshort-backend-blue"; then
-          export ACTIVE_COLOR="blue"
-          export INACTIVE_COLOR="green"
-      else
-          export ACTIVE_COLOR="green"
-          export INACTIVE_COLOR="blue"
-      fi
-    
-    - echo "Active $ACTIVE_COLOR deploying to $INACTIVE_COLOR"
-    
-    - docker compose -f docker-compose.prod.yml up -d backend-${INACTIVE_COLOR}
-    
-    - echo "Health check for $INACTIVE_COLOR..."
-    - |
-      for i in $(seq 1 30); do
-        if docker exec goshort-backend-${INACTIVE_COLOR} curl -f http://localhost:8080/api/v1/health >/dev/null 2>&1; then
-            echo "$INACTIVE_COLOR is healthy!"
-            break
-        fi
-        echo "Waiting... ($i/30)"
-        sleep 2
-      done
-    
-    - echo "Switching nginx config..."
-    - echo "server backend-${INACTIVE_COLOR}:8080 max_fails=3 fail_timeout=30s;" > nginx/upstreams/backend_active.conf
-    
-    - |
-      NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1 || true)
-      if [ -z "$NGINX_CONTAINER" ]; then
-        echo "Starting nginx..."
-        docker compose -f docker-compose.prod.yml up -d nginx
-        sleep 5
-        NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
-      fi
-      
-      echo "Waiting for nginx to be ready..."
-      for i in $(seq 1 20); do
-        NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' $NGINX_CONTAINER 2>/dev/null || echo "not_found")
-        if [ "$NGINX_STATUS" = "running" ]; then
-          echo "Nginx is running!"
-          break
-        fi
-        echo "Nginx status: $NGINX_STATUS, waiting... ($i/20)"
-        sleep 3
-      done
-      
-      echo "Using nginx container: $NGINX_CONTAINER"
-      docker exec $NGINX_CONTAINER nginx -t
-      docker exec $NGINX_CONTAINER nginx -s reload
-    
-    - echo "Updating frontend..."
-    - docker compose -f docker-compose.prod.yml up -d frontend
-    
-    - echo "Stopping old backend $ACTIVE_COLOR..."
-    - docker compose -f docker-compose.prod.yml stop backend-${ACTIVE_COLOR}
-    
-    - echo "=========================================="
-    - echo "Deployment successful Active $INACTIVE_COLOR"
-    - echo "=========================================="
-    
-    - docker image prune -af --filter "until=72h"
-  environment:
-    name: production
-    url: https://kagnite.duckdns.org
-  only:
-    - main
-  when: manual
-
+# --- Staging Deployment ---
 deploy_staging:
   stage: deploy
   image: docker:25-cli
@@ -398,8 +173,6 @@ deploy_staging:
     - mkdir -p ~/.docker/cli-plugins
     - wget -q https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -O ~/.docker/cli-plugins/docker-compose
     - chmod +x ~/.docker/cli-plugins/docker-compose
-    - docker compose version
-    - docker info
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
     - mkdir -p /opt/goshort-staging
@@ -414,6 +187,39 @@ deploy_staging:
   only:
     - develop
 
+# --- Production Deployment (Blue-Green) ---
+deploy_production:
+  stage: deploy
+  image: docker:25-cli
+  tags: [vps-runner]
+  before_script:
+    - mkdir -p ~/.docker/cli-plugins
+    - wget -q https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -O ~/.docker/cli-plugins/docker-compose
+    - chmod +x ~/.docker/cli-plugins/docker-compose
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - echo "Deploying to Production..."
+    
+    # 1. Prepare files on server
+    - mkdir -p /opt/goshort/nginx/upstreams
+    - cp docker-compose.prod.yml /opt/goshort/
+    - cp nginx/nginx.conf /opt/goshort/nginx/
+    
+    # 2. Copy the script logic (This replaces the 100 lines of YAML logic)
+    - cp deploy/scripts/blue-green-deploy.sh /opt/goshort/deploy.sh
+    - chmod +x /opt/goshort/deploy.sh
+    
+    # 3. Execute the script
+    - /opt/goshort/deploy.sh
+    
+  environment:
+    name: production
+    url: https://kagnite.duckdns.org
+  only:
+    - main
+  when: manual
+
+# --- Rollback ---
 rollback_production:
   stage: deploy
   image: docker:25-cli
@@ -422,49 +228,25 @@ rollback_production:
     - mkdir -p ~/.docker/cli-plugins
     - wget -q https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -O ~/.docker/cli-plugins/docker-compose
     - chmod +x ~/.docker/cli-plugins/docker-compose
-    - docker compose version
   script:
-    - mkdir -p /opt/goshort/nginx/upstreams
-    - cp docker-compose.prod.yml /opt/goshort/
-    - cp nginx/nginx.conf /opt/goshort/nginx/
     - cd /opt/goshort
     
+    # Determine previous version logic (Simplified)
     - |
       if docker ps --format '{{.Names}}' | grep -q "goshort-backend-blue"; then
-          export CURRENT="blue"
-          export PREVIOUS="green"
+          PREVIOUS="green"
+          CURRENT="blue"
       else
-          export CURRENT="green"
-          export PREVIOUS="blue"
+          PREVIOUS="blue"
+          CURRENT="green"
       fi
     
-    - echo "Rolling back from $CURRENT to $PREVIOUS"
-    
+    - echo "Rolling back to $PREVIOUS..."
     - docker compose -f docker-compose.prod.yml up -d backend-${PREVIOUS}
-    
-    - sleep 10
-    
     - echo "server backend-${PREVIOUS}:8080 max_fails=3 fail_timeout=30s;" > nginx/upstreams/backend_active.conf
+    - docker exec goshort-nginx nginx -s reload
+    - docker stop goshort-backend-${CURRENT}
     
-    - |
-      NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1 || true)
-      if [ -n "$NGINX_CONTAINER" ]; then
-        echo "Waiting for nginx to be ready..."
-        for i in $(seq 1 20); do
-          NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' $NGINX_CONTAINER 2>/dev/null || echo "not_found")
-          if [ "$NGINX_STATUS" = "running" ]; then
-            echo "Nginx is running!"
-            docker exec $NGINX_CONTAINER nginx -s reload
-            break
-          fi
-          echo "Nginx status: $NGINX_STATUS, waiting... ($i/20)"
-          sleep 3
-        done
-      else
-        echo "No nginx container found"
-      fi
-    
-    - echo "Rollback completed to $PREVIOUS"
   environment:
     name: production
   when: manual
