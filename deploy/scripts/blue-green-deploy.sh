@@ -2,7 +2,7 @@
 
 # ============================================
 # Blue-Green Deployment Script
-# Zero Downtime Deployment with Debugging
+# Zero Downtime Deployment with Full Debugging
 # ============================================
 
 set -e
@@ -35,36 +35,26 @@ check_health() {
     log_info "Checking health of $container_name..."
     
     for i in $(seq 1 $max_attempts); do
-        # تلاش برای بررسی سلامت (بی‌صدا)
         if docker exec "$container_name" curl -f http://localhost:8080/api/v1/health >/dev/null 2>&1; then
             log_success "$container_name is healthy!"
             return 0
         fi
         
-        # چاپ پیام انتظار هر ۵ ثانیه
         if [ $((i % 3)) -eq 0 ]; then
              log_info "Attempt $i/$max_attempts: waiting for health..."
         fi
         sleep $HEALTH_CHECK_INTERVAL
     done
     
-    # === بخش دیباگ (فقط وقتی اجرا می‌شود که هلث‌چک فیل شود) ===
     log_error "$container_name failed health check!"
     log_warning "================ DEBUG INFO START ================"
-    
-    echo "1. Checking if curl is installed inside container:"
-    docker exec "$container_name" which curl || echo "CURL NOT FOUND!"
-    
-    echo ""
-    echo "2. Curl Verbose Output (Why connection failed?):"
+    echo "1. Checking curl:"
+    docker exec "$container_name" which curl || echo "CURL NOT FOUND"
+    echo "2. Curl output:"
     docker exec "$container_name" curl -v http://localhost:8080/api/v1/health || true
-    
-    echo ""
-    echo "3. Container Logs (Last 50 lines):"
+    echo "3. Logs:"
     docker logs --tail 50 "$container_name"
-    
     log_warning "================ DEBUG INFO END ================"
-    # ==========================================================
 
     return 1
 }
@@ -73,12 +63,13 @@ switch_nginx() {
     local target_color=$1
     log_info "Switching nginx to $target_color environment..."
     
-    # Update upstream config
+
+    mkdir -p "${DEPLOY_PATH}/nginx/upstreams"
+   
     echo "server backend-${target_color}:8080 max_fails=3 fail_timeout=30s;" > "${DEPLOY_PATH}/nginx/upstreams/backend_active.conf"
     
     NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1 || true)
     
-    # Start Nginx if not running
     if [ -z "$NGINX_CONTAINER" ]; then
         log_warning "Nginx container not found, starting it..."
         docker compose -f docker-compose.prod.yml up -d nginx
@@ -86,11 +77,15 @@ switch_nginx() {
         NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
     fi
 
-    # Test and Reload
-    if ! docker exec "$NGINX_CONTAINER" nginx -t 2>&1 | grep -q "successful"; then
-        log_error "Nginx configuration test failed"
+    log_info "Testing Nginx configuration..."
+    
+    
+    if ! docker exec "$NGINX_CONTAINER" nginx -t; then
+        log_error "Nginx configuration test failed!"
+        log_warning "Check the error details printed above ⬆️"
         return 1
     fi
+    # --------------------------------------------------
     
     docker exec "$NGINX_CONTAINER" nginx -s reload
     log_success "Nginx switched to $target_color"
@@ -108,15 +103,12 @@ main() {
 
     cd "$DEPLOY_PATH" || exit 1
     
-    # Login
     echo "${CI_REGISTRY_PASSWORD}" | docker login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
     
-    # Pull images
     log_info "Pulling images..."
     docker pull "$IMAGE_BACKEND"
     docker pull "$IMAGE_FRONTEND"
     
-    # Determine Colors
     if docker ps --format '{{.Names}}' | grep -q "goshort-backend-blue"; then
         ACTIVE_COLOR="blue"
         INACTIVE_COLOR="green"
@@ -127,34 +119,28 @@ main() {
     
     log_info "Active: $ACTIVE_COLOR | Deploying to: $INACTIVE_COLOR"
     
-    # 1. Start New Backend
     log_info "Starting backend-$INACTIVE_COLOR..."
     docker compose -f docker-compose.prod.yml up -d "backend-${INACTIVE_COLOR}"
     
-    # 2. Health Check
     if ! check_health "goshort-backend-${INACTIVE_COLOR}"; then
         log_error "Health check failed. Stopping new container."
         docker stop "goshort-backend-${INACTIVE_COLOR}"
         exit 1
     fi
     
-    # 3. Switch Nginx
     if ! switch_nginx "$INACTIVE_COLOR"; then
         exit 1
     fi
     
-    # 4. Stop Old Backend (Immediate cleanup to save RAM)
     if [ -n "$ACTIVE_COLOR" ]; then
         log_info "Stopping old backend ($ACTIVE_COLOR) to free up memory..."
         docker stop "goshort-backend-${ACTIVE_COLOR}" || true
         docker rm "goshort-backend-${ACTIVE_COLOR}" || true
     fi
 
-    # 5. Update Frontend (Safe now that RAM is freed)
     log_info "Updating frontend..."
     docker compose -f docker-compose.prod.yml up -d frontend
 
-    # 6. Cleanup
     docker image prune -af --filter "until=24h" >/dev/null 2>&1 || true
     
     log_success "Deployment Complete! Active: $INACTIVE_COLOR"
