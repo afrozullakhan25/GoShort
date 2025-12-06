@@ -90,7 +90,7 @@ const shortenUrl = async () => {
 
   try {
    
-    const response = await axios.post('/shorten', {
+    const response = await axios.post('/v1/shorten', {
       url: longUrl.value,
       short: customAlias.value
     })
