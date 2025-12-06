@@ -2,7 +2,7 @@
 
 # ============================================
 # Blue-Green Deployment Script
-# Zero Downtime Deployment with Full Debugging
+# Zero Downtime Deployment with Crash Recovery
 # ============================================
 
 set -e
@@ -63,29 +63,46 @@ switch_nginx() {
     local target_color=$1
     log_info "Switching nginx to $target_color environment..."
     
-
+    # Ensure directory exists
     mkdir -p "${DEPLOY_PATH}/nginx/upstreams"
-   
+    
+    # Write the NEW config file pointing to the healthy container
     echo "server backend-${target_color}:8080 max_fails=3 fail_timeout=30s;" > "${DEPLOY_PATH}/nginx/upstreams/backend_active.conf"
     
-    NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1 || true)
+    # Find Nginx container
+    NGINX_CONTAINER=$(docker ps -a --format '{{.Names}}' | grep nginx | head -1 || true)
     
+    # Check Nginx status
     if [ -z "$NGINX_CONTAINER" ]; then
         log_warning "Nginx container not found, starting it..."
         docker compose -f docker-compose.prod.yml up -d nginx
-        sleep 5
-        NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
+    else
+        STATUS=$(docker inspect --format='{{.State.Status}}' "$NGINX_CONTAINER" 2>/dev/null || echo "unknown")
+        
+        # If Nginx is in a crash loop (restarting/exited), FORCE RECREATE it.
+        # This makes it start fresh and pick up the new config file we just wrote.
+        if [ "$STATUS" == "restarting" ] || [ "$STATUS" == "exited" ] || [ "$STATUS" == "dead" ]; then
+            log_warning "Nginx is in '$STATUS' state. Forcing restart to pick up new config..."
+            docker compose -f docker-compose.prod.yml up -d --force-recreate nginx
+        fi
     fi
+
+    # Wait for Nginx to stabilize
+    log_info "Waiting for Nginx to stabilize..."
+    sleep 5
+    
+    # Get container name again in case it changed
+    NGINX_CONTAINER=$(docker ps --format '{{.Names}}' | grep nginx | head -1)
 
     log_info "Testing Nginx configuration..."
     
-    
+    # Test config and print full error logs if it fails
     if ! docker exec "$NGINX_CONTAINER" nginx -t; then
         log_error "Nginx configuration test failed!"
-        log_warning "Check the error details printed above ⬆️"
+        log_warning "Nginx Logs:"
+        docker logs --tail 20 "$NGINX_CONTAINER"
         return 1
     fi
-    # --------------------------------------------------
     
     docker exec "$NGINX_CONTAINER" nginx -s reload
     log_success "Nginx switched to $target_color"
@@ -109,6 +126,7 @@ main() {
     docker pull "$IMAGE_BACKEND"
     docker pull "$IMAGE_FRONTEND"
     
+    # Determine which color is currently running (if any)
     if docker ps --format '{{.Names}}' | grep -q "goshort-backend-blue"; then
         ACTIVE_COLOR="blue"
         INACTIVE_COLOR="green"
@@ -119,28 +137,34 @@ main() {
     
     log_info "Active: $ACTIVE_COLOR | Deploying to: $INACTIVE_COLOR"
     
+    # 1. Start the NEW Backend
     log_info "Starting backend-$INACTIVE_COLOR..."
     docker compose -f docker-compose.prod.yml up -d "backend-${INACTIVE_COLOR}"
     
+    # 2. Check Health of NEW Backend
     if ! check_health "goshort-backend-${INACTIVE_COLOR}"; then
         log_error "Health check failed. Stopping new container."
         docker stop "goshort-backend-${INACTIVE_COLOR}"
         exit 1
     fi
     
+    # 3. Switch Nginx (This handles the crash loop automatically)
     if ! switch_nginx "$INACTIVE_COLOR"; then
         exit 1
     fi
     
+    # 4. Cleanup Old Backend
     if [ -n "$ACTIVE_COLOR" ]; then
         log_info "Stopping old backend ($ACTIVE_COLOR) to free up memory..."
         docker stop "goshort-backend-${ACTIVE_COLOR}" || true
         docker rm "goshort-backend-${ACTIVE_COLOR}" || true
     fi
 
+    # 5. Update Frontend
     log_info "Updating frontend..."
     docker compose -f docker-compose.prod.yml up -d frontend
 
+    # 6. General Cleanup
     docker image prune -af --filter "until=24h" >/dev/null 2>&1 || true
     
     log_success "Deployment Complete! Active: $INACTIVE_COLOR"
