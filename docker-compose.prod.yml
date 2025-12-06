@@ -108,7 +108,7 @@ services:
     environment:
       - VITE_API_URL=/api/v1
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3
