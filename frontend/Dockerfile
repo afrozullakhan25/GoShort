@@ -1,28 +1,24 @@
 # ============================================
-# Build Stage
+# Stage 1: Build
 # ============================================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files (cached layer)
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci 
+RUN npm ci
 
-# Copy source code
 COPY . .
 
-# Build for production
 RUN npm run build
 
 # ============================================
-# Production Stage (Nginx)
+# Stage 2: Production
 # ============================================
 FROM nginx:1.25-alpine
 
-# Install curl for health checks
+# Install curl for health check
 RUN apk --no-cache add curl
 
 # Remove default nginx config
@@ -31,25 +27,25 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built files
+# Copy built artifacts
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create non-root user
-RUN addgroup -g 1000 nginx-user && \
-    adduser -D -u 1000 -G nginx-user nginx-user && \
-    chown -R nginx-user:nginx-user /usr/share/nginx/html && \
-    chown -R nginx-user:nginx-user /var/cache/nginx && \
+# Set permissions for non-root user (nginx)
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    chown -R nginx:nginx /etc/nginx/conf.d && \
     touch /var/run/nginx.pid && \
-    chown nginx-user:nginx-user /var/run/nginx.pid
+    chown nginx:nginx /var/run/nginx.pid
 
 # Switch to non-root user
-USER nginx-user
+USER nginx
 
-EXPOSE 80
+# Expose port 8080 (Non-root users cannot bind to ports < 1024)
+EXPOSE 8080
 
-# Health check
+# Health check on port 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
+    CMD curl -f http://localhost:8080/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
-
