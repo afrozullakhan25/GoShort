@@ -216,7 +216,15 @@ Provide a clear explanation of the changes and why they are needed.
 
 ------------------------------------------------------------------------
 
-## 📸 Screenshots (Optional)
+## 📸 Screenshots 
+
+<div align="center">
+  <img src="screenshots/home.jpg" alt="Home Page" width="700"/>
+  <br/><br/>
+  <img src="screenshots/result.png" alt="Success State" width="700"/>
+</div>
+
+---
 
 ------------------------------------------------------------------------
 
