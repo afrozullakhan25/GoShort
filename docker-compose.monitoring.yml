@@ -1,0 +1,55 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    container_name: monitoring-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    networks:
+      - goshort-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.4.0-19913286788
+    container_name: monitoring-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - goshort-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.80.1
+    container_name: monitoring-redis-exporter
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    networks:
+      - goshort-network
+    restart: unless-stopped
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: monitoring-postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-goshort}?sslmode=disable
+    networks:
+      - goshort-network
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  
+networks:
+  goshort-network:
+    external: true
