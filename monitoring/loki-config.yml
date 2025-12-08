@@ -17,11 +17,19 @@ common:
     kvstore:
       store: inmemory
       
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/cache
+    cache_migration_period: 24h
+    shared_store: filesystem
+  filesystem:
+    directory: /loki/chunks
 
 schema_config:
   configs:
     - from: 2024-01-01
-      store: filesystem
+      store: boltdb-shipper
       object_store: filesystem
       schema: v12
       index:
