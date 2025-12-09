@@ -6,7 +6,6 @@ server:
 
 common:
   instance_addr: 127.0.0.1
-  path_prefix: /loki
   storage:
     filesystem:
       chunks_directory: /loki/chunks
@@ -19,10 +18,8 @@ common:
       
 storage_config:
   boltdb_shipper:
-    active_index_location: /loki/index
     cache_location: /loki/cache
     shared_store: filesystem
-    directory: /loki/chunks
 
 schema_config:
   configs:
