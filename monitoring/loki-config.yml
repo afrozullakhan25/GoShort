@@ -6,10 +6,6 @@ server:
 
 common:
   instance_addr: 127.0.0.1
-  storage:
-    filesystem:
-      chunks_directory: /loki/chunks
-      rules_directory: /loki/rules
   replication_factor: 1
   ring:
     instance_addr: 127.0.0.1
@@ -18,8 +14,12 @@ common:
       
 storage_config:
   boltdb_shipper:
+    active_index_directory: /loki/index
     cache_location: /loki/cache
     shared_store: filesystem
+  
+  filesystem:
+    directory: /loki/chunks
 
 schema_config:
   configs:
